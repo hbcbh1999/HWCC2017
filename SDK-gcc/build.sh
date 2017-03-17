@@ -29,4 +29,5 @@ cmake ../cdn
 make
 
 cd ..
+rm cdn.tar.gz
 tar -zcPf cdn.tar.gz *
