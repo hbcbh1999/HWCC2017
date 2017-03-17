@@ -16,3 +16,5 @@ B点（视频内容服务器）：待定，提供输出的源点，有固定费�
 ## 求解
 
 不会无解，最坏情况是所有A点都为B点，最大费用为B点总费用。
+
+问题即设施选址问题：https://en.wikipedia.org/wiki/Facility_location_problem
