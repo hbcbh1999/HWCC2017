@@ -1,70 +1,32 @@
 #include "deploy.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <queue>
 #include <iostream>
 
 using namespace std;
 
-void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename)
+void deploy_server(vector<vi> topo, char * filename)
 {
-    int consumerNum = 0;
-    char *c;
-    int spaceCount = 0;
-
-    c = topo[0];
-
-    while (*c != '\0' && *c != '\n' && *c != '\r')
-    {
-        if (*c == ' ')
-        {
-            c++;
-            spaceCount++;
-            continue;
-        }
-        if (spaceCount == 2)
-        {
-            consumerNum = *c - '0' + consumerNum * 10;
-        }
-        c++;
-    }
-
-    string res;
+    int n = topo[0][0];
+    int m = topo[0][1];
+    int c = topo[0][2];
+    string ans;
     char a[20];
-    sprintf(a, "%d\n\n",consumerNum);
-    res = a;
-    int netnode, need;
+    sprintf(a, "%d\n\n", c);
+    ans = a;
 
-    for (int i = 1; i < consumerNum+1; i++)
+    for (int i = 0; i < c; ++i)
     {
-        c = topo[line_num-i];
-        netnode = need = spaceCount = 0;
-        while (*c != '\0' && *c != '\n' && *c != '\r')
+        int idx = topo[m + 2 + i][1];
+        int k = topo[m + 2 + i][2];
+        sprintf(a, "%d %d %d", idx, i, k);
+        ans += a;
+        if (i != c - 1)
         {
-            if (*c == ' ')
-            {
-                c++;
-                spaceCount++;
-                continue;
-            }
-            if (spaceCount == 1)
-            {
-                netnode = *c - '0' + netnode * 10;
-            }
-            else if (spaceCount == 2)
-            {
-                need = *c - '0' + need * 10;
-            }
-            c++;
-        }
-        sprintf(a, "%d %d %d",netnode,consumerNum-i,need);
-        res += a;
-        if (i != consumerNum)
-        {
-            res += "\n";
+            ans += "\n";
         }
     }
 
-    char * topo_file = (char *)res.c_str();
+    char * topo_file = (char *)ans.c_str();
     write_result(topo_file, filename);
 }

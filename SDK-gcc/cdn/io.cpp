@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
+#include "lib_io.h"
 
 #define MAX_LINE_LEN 55000
 
@@ -45,32 +46,46 @@ void print_time(const char *head)
 #endif
 }
 
-int read_file(char ** const buff, const unsigned int spec, const char * const filename)
+bool read(FILE *fp, int &x)
 {
+    // read positive integer
+    char c = getc(fp);
+    while (!feof(fp) && c != '\n' && (c < '0' || c > '9'))
+        c = getc(fp);
+    if (feof(fp) || c == '\n')
+        return 0;
+    for (x = 0; c >= '0' && c <= '9'; c = getc(fp))
+        x = x * 10 + c - '0';
+    if (c == '\n')
+        return 0;
+    return 1;
+}
+
+vector<vi> read_file(const char * const filename)
+{
+    vector<vi> ans;
     FILE *fp = fopen(filename, "r");
     if (fp == NULL)
     {
-    	PRINT("Fail to open file %s, %s.\n", filename, strerror(errno));
-        return 0;
+        PRINT("Fail to open %s, %s.\n", filename, strerror(errno));
+        return ans;
     }
-    PRINT("Open file %s OK.\n", filename);
+    PRINT("Open %s.\n", filename);
 
-    char line[MAX_LINE_LEN + 2];
-    unsigned int cnt = 0;
-    while ((cnt < spec) && !feof(fp))
+    while (!feof(fp))
     {
-        line[0] = 0;
-        if (fgets(line, MAX_LINE_LEN + 2, fp) == NULL)  continue;
-        if (line[0] == 0)   continue;
-        buff[cnt] = (char *)malloc(MAX_LINE_LEN + 2);
-        strncpy(buff[cnt], line, MAX_LINE_LEN + 2 - 1);
-        buff[cnt][MAX_LINE_LEN + 1] = 0;
-        cnt++;
+        vi a;
+        int x = -1;
+        while (read(fp, x) && !feof(fp))
+            a.push_back(x);
+        if (x >= 0)
+            a.push_back(x);
+        if (a.size() > 0)
+            ans.push_back(a);
     }
     fclose(fp);
-    PRINT("There are %d lines in file %s.\n", cnt, filename);
-
-    return cnt;
+    PRINT("%d lines in %s.\n", (int)ans.size(), filename);
+    return ans;
 }
 
 void write_result(const char * const buff,const char * const filename)
