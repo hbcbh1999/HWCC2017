@@ -25,12 +25,18 @@ for i in range(2, m + 2):
         topo[line[0]] = dict()
     if line[1] not in topo:
         topo[line[1]] = dict()
+    if line[1] in topo[line[0]]:
+        print('{}->{} duplicate'.format(line[0], line[1]))
+    if line[0] in topo[line[1]]:
+        print('{}->{} duplicate'.format(line[1], line[0]))
     topo[line[0]][line[1]] = [line[2], line[3]]
     topo[line[1]][line[0]] = [line[2], line[3]]
 
 consumers = dict()
 for i in range(m + 2, m + 2 + c):
     c_id, idx, need = inputs[i]
+    if c_id in consumers:
+        print('consumer id {} duplicate'.format(c_id))
     consumers[c_id] = [idx, need]
 
 # check output
