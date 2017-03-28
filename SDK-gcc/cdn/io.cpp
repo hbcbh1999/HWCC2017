@@ -115,7 +115,6 @@ INLINE void write_file(const bool cover, const char * const buff, const char * c
     }
     PRINT("Open file %s OK.\n", filename);
     fputs(buff, fp);
-    fputs("\n", fp);
     fclose(fp);
 }
 
