@@ -13,6 +13,12 @@ int startTime;
 typedef int flow_type;
 typedef int cost_type;
 const int oo = 1 << 24;
+int consumer_id[N];
+vi consumers;
+vi best_servers, servers;
+int best_cost, total_cost, total_servers_cost, server_cost;
+vector<vi> best_paths;
+
 struct Graph
 {
     struct Edge
@@ -109,7 +115,11 @@ struct Graph
     int solve()
     {
         while (spfa())
+        {
             costflow();
+            if (ans + total_servers_cost >= best_cost)
+                return ans;
+        }
         return ans;
     }
     bool is_full()
@@ -158,11 +168,6 @@ struct Graph
         }
     }
 } g, gg;
-int consumer_id[N];
-vi consumers;
-vi best_servers, servers;
-int best_cost, total_cost, server_cost;
-vector<vi> best_paths;
 
 vi get_servers(vi servers, int n_servers)
 {
@@ -178,18 +183,18 @@ bool work(int n_servers)
     int times = min(1 << min(n_servers + 1, 20), 8192);
     int success_times = 0;
     int best = best_cost;
+    total_servers_cost = server_cost * n_servers;
     while (times--)
     {
         if (time(NULL) - init_time > 8)
             return 0;
-        if (time(NULL) - startTime > 80)
+        if (time(NULL) - startTime > 50)
             return 0;
         servers = get_servers(best_servers, n_servers);
-        total_cost = server_cost * n_servers;
         g = gg;
         for (int i = 0; i < n_servers; ++i)
             g.add(g.s, servers[i], oo, 0);
-        total_cost += g.solve();
+        total_cost = total_servers_cost + g.solve();
         if (!g.is_full())
             continue;
         if (total_cost <= best)
@@ -212,7 +217,6 @@ void deploy_server(vector<vi> topo, char * filename)
     int m = topo[0][1];
     int c = topo[0][2];
     server_cost = topo[1][0];
-    best_cost = server_cost * c;
 
     // inputs
     g.init(n + 2, n, n + 1);
@@ -233,56 +237,80 @@ void deploy_server(vector<vi> topo, char * filename)
         vi path;
         path.push_back(idx);
         path.push_back(topo[i][2]);
-        best_servers.push_back(idx);
         best_paths.push_back(path);
     }
     gg = g;
+    best_cost = server_cost * c;
+    best_servers = consumers;
 
-    // solve
-    int l = 0, r = c;
-    while (l < r)
+    // solve, random
+    if (c > 200)
     {
-        if (time(NULL) - startTime > 80)
-            break;
-
-        int mid = (l + r) >> 1;
-        // printf("DEBUG %d %d %d\n", l, r, mid);
-        if (work(mid))
+        int l = 0, r = c;
+        while (l < r)
         {
-            r = mid;
+            if (time(NULL) - startTime > 50)
+                break;
+            int mid = (l + r) >> 1;
+            // printf("DEBUG %d %d %d\n", l, r, mid);
+            if (work(mid))
+            {
+                r = mid;
+                best_cost = total_cost;
+                best_servers = servers;
+                // printf("DEBUG %d %d\n", best_cost, best_cost - total_servers_cost);
+                g.get_paths();
+                best_paths = g.paths;
+            }
+            else
+                l = mid + 1;
+        }
+    }
+
+    // int best_cost1 = best_cost;
+    // vector<vi> best_paths1 = best_paths;
+    // best_cost = server_cost * c;
+    // best_servers = consumers;
+
+    // solve, greedy
+    while (1)
+    {
+        vi old_servers = best_servers;
+        bool flag = 1;
+        int tot = int(old_servers.size()) - 1;
+        int init_time = time(NULL);
+        total_servers_cost = server_cost * tot;
+        for (int k = 0; k <= tot; ++k)
+        {
+            if (time(NULL) - init_time > 1)
+                break;
+            if (time(NULL) - startTime > 86)
+                break;
+            servers = old_servers;
+            servers[k] = servers[tot];
+            servers.pop_back();
+            g = gg;
+            for (int i = 0; i < tot; ++i)
+                g.add(g.s, servers[i], oo, 0);
+            int total_cost = total_servers_cost + g.solve();
+            if (total_cost >= best_cost || !g.is_full())
+                continue;
+            flag = 0;
             best_cost = total_cost;
             best_servers = servers;
-            // printf("DEBUG %d %d\n", best_cost, best_cost - server_cost * mid);
             g.get_paths();
             best_paths = g.paths;
         }
-        else
-            l = mid + 1;
+        if (flag)
+            break;
+        // printf("DEBUG2 %d  servers: %d  time: %d\n", best_cost, tot, int(time(NULL) - startTime));
     }
 
-    // solve, stage 2
-    int n_servers = best_servers.size();
-    int times = min(1 << min(n_servers + 1, 20), 65536);
-    while (times--)
-    {
-        if (time(NULL) - startTime > 80)
-            break;
-        servers = get_servers(consumers, n_servers);
-        total_cost = server_cost * n_servers;
-        g = gg;
-        for (int i = 0; i < n_servers; ++i)
-            g.add(g.s, servers[i], oo, 0);
-        total_cost += g.solve();
-        if (!g.is_full())
-            continue;
-        if (total_cost >= best_cost)
-            continue;
-        best_cost = total_cost;
-        best_servers = servers;
-        // printf("DEBUG2 %d %d\n", best_cost, best_cost - server_cost * n_servers);
-        g.get_paths();
-        best_paths = g.paths;
-    }
+    // if (best_cost1 < best_cost)
+    // {
+    //     best_cost = best_cost1;
+    //     best_paths = best_paths1;
+    // }
 
     // outputs
     string ans;
