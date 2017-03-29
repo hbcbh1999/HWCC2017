@@ -16,7 +16,7 @@ const int oo = 1 << 24;
 int consumer_id[N];
 vi consumers;
 vi best_servers, servers;
-int best_cost, total_cost, total_servers_cost, server_cost;
+int best_cost, total_cost, best_flow_cost, server_cost;
 vector<vi> best_paths;
 
 struct Graph
@@ -117,7 +117,7 @@ struct Graph
         while (spfa())
         {
             costflow();
-            if (ans + total_servers_cost >= best_cost)
+            if (ans >= best_flow_cost)
                 return ans;
         }
         return ans;
@@ -180,28 +180,22 @@ vi get_servers(vi servers, int n_servers)
 bool work(int n_servers)
 {
     int init_time = time(NULL);
-    int times = min(1 << min(n_servers + 1, 20), 8192);
+    int times = 1 << min(n_servers + 1, 13);
     int success_times = 0;
-    int best = best_cost;
-    total_servers_cost = server_cost * n_servers;
+    best_flow_cost = best_cost - server_cost * n_servers;
     while (times--)
     {
         if (time(NULL) - init_time > 8)
-            return 0;
-        if (time(NULL) - startTime > 50)
             return 0;
         servers = get_servers(best_servers, n_servers);
         g = gg;
         for (int i = 0; i < n_servers; ++i)
             g.add(g.s, servers[i], oo, 0);
-        total_cost = total_servers_cost + g.solve();
-        if (!g.is_full())
+        int flow_cost = g.solve();
+        if (flow_cost > best_flow_cost || !g.is_full())
             continue;
-        if (total_cost <= best)
-        {
-            best = total_cost;
-            ++success_times;
-        }
+        best_flow_cost = flow_cost;
+        ++success_times;
         if (success_times > 2)
             return 1;
     }
@@ -256,9 +250,9 @@ void deploy_server(vector<vi> topo, char * filename)
             if (work(mid))
             {
                 r = mid;
-                best_cost = total_cost;
+                best_cost = best_flow_cost + server_cost * mid;
                 best_servers = servers;
-                // printf("DEBUG %d %d\n", best_cost, best_cost - total_servers_cost);
+                // printf("DEBUG %d\n", best_cost);
                 g.get_paths();
                 best_paths = g.paths;
             }
@@ -267,24 +261,19 @@ void deploy_server(vector<vi> topo, char * filename)
         }
     }
 
-    // int best_cost1 = best_cost;
-    // vector<vi> best_paths1 = best_paths;
-    // best_cost = server_cost * c;
-    // best_servers = consumers;
-
     // solve, greedy
     while (1)
     {
+        if (time(NULL) - startTime > 85)
+            break;
         vi old_servers = best_servers;
         bool flag = 1;
         int tot = int(old_servers.size()) - 1;
         int init_time = time(NULL);
-        total_servers_cost = server_cost * tot;
+        best_flow_cost = best_cost - server_cost * tot;
         for (int k = 0; k <= tot; ++k)
         {
-            if (time(NULL) - init_time > 1)
-                break;
-            if (time(NULL) - startTime > 86)
+            if (time(NULL) - init_time > 2)
                 break;
             servers = old_servers;
             servers[k] = servers[tot];
@@ -292,25 +281,20 @@ void deploy_server(vector<vi> topo, char * filename)
             g = gg;
             for (int i = 0; i < tot; ++i)
                 g.add(g.s, servers[i], oo, 0);
-            int total_cost = total_servers_cost + g.solve();
-            if (total_cost >= best_cost || !g.is_full())
+            int flow_cost = g.solve();
+            if (flow_cost >= best_flow_cost || !g.is_full())
                 continue;
             flag = 0;
-            best_cost = total_cost;
+            best_flow_cost = flow_cost;
             best_servers = servers;
             g.get_paths();
             best_paths = g.paths;
         }
         if (flag)
             break;
+        best_cost = best_flow_cost + server_cost * tot;
         // printf("DEBUG2 %d  servers: %d  time: %d\n", best_cost, tot, int(time(NULL) - startTime));
     }
-
-    // if (best_cost1 < best_cost)
-    // {
-    //     best_cost = best_cost1;
-    //     best_paths = best_paths1;
-    // }
 
     // outputs
     string ans;
