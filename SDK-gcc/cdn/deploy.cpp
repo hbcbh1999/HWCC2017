@@ -16,7 +16,8 @@ const int oo = 1 << 24;
 int consumer_id[N];
 vi consumers;
 vi best_servers, servers;
-int best_cost, total_cost, best_flow_cost, server_cost;
+flow_type flow_need;
+cost_type best_cost, total_cost, best_flow_cost, server_cost;
 vector<vi> best_paths;
 
 struct Graph
@@ -122,13 +123,6 @@ struct Graph
         }
         return ans;
     }
-    bool is_full()
-    {
-        for (int i = b[t]; i; i = a[i].x)
-            if (a[i ^ 1].z != 0)
-                return 0;
-        return 1;
-    }
     void get_one_path(int k, int x)
     {
         if (k == t)
@@ -192,7 +186,7 @@ bool work(int n_servers)
         for (int i = 0; i < n_servers; ++i)
             g.add(g.s, servers[i], oo, 0);
         int flow_cost = g.solve();
-        if (flow_cost > best_flow_cost || !g.is_full())
+        if (flow_cost > best_flow_cost || g.flow != flow_need)
             continue;
         best_flow_cost = flow_cost;
         ++success_times;
@@ -221,12 +215,14 @@ void deploy_server(vector<vi> topo, char * filename)
         g.add(topo[i][1], topo[i][0], topo[i][2], topo[i][3]);
     }
 
+    flow_need = 0;
     for (int i = m + 2; i < m + 2 + c; ++i)
     {
         int idx = topo[i][1];
         consumer_id[idx] = topo[i][0];
         consumers.push_back(idx);
         g.add(idx, g.t, topo[i][2], 0);
+        flow_need += topo[i][2];
         // init best_paths
         vi path;
         path.push_back(idx);
@@ -282,7 +278,7 @@ void deploy_server(vector<vi> topo, char * filename)
             for (int i = 0; i < tot; ++i)
                 g.add(g.s, servers[i], oo, 0);
             int flow_cost = g.solve();
-            if (flow_cost >= best_flow_cost || !g.is_full())
+            if (flow_cost >= best_flow_cost || g.flow != flow_need)
                 continue;
             flag = 0;
             best_flow_cost = flow_cost;
