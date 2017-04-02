@@ -8,34 +8,29 @@ using namespace std;
 
 int startTime;
 
-#define N 1005
-#define M 100005
-typedef int flow_type;
-typedef int cost_type;
+#define N 1003
+#define M 100003
 const int oo = 1 << 24;
 int consumer_id[N];
 vi consumers;
 vi best_servers, servers;
-flow_type flow_need;
-cost_type best_cost, total_cost, best_flow_cost, server_cost;
+int flow_need;
+int best_cost, total_cost, best_flow_cost, server_cost;
 vector<vi> best_paths;
+
+int a_bak[M][4], b_bak[N];
+int tot_bak;
 
 struct Graph
 {
-    struct Edge
-    {
-        int x, y;
-        flow_type z;
-        cost_type c;
-    } a[M];
-    int n, s, t, tot;
-    flow_type flow;
-    cost_type ans;
+    int a[M][4];
     int b[N], p[N];
-    cost_type d[N];
+    int d[N];
     bool v[N];
     vi path, path_edge;
     vector<vi> paths;
+    int n, s, t, tot;
+    int flow, ans;
     bool flag;
     void init(int _n, int _s, int _t)
     {
@@ -46,20 +41,19 @@ struct Graph
         flow = 0;
         ans = 0;
         memset(b, 0, sizeof(b));
-        paths.clear();
     }
-    void add(int i, int j, flow_type k, cost_type c)
+    void add(int i, int j, int k, int c)
     {
-        a[++tot].x = b[i];
+        a[++tot][0] = b[i];
         b[i] = tot;
-        a[tot].y = j;
-        a[tot].z = k;
-        a[tot].c = c;
-        a[++tot].x = b[j];
+        a[tot][1] = j;
+        a[tot][2] = k;
+        a[tot][3] = c;
+        a[++tot][0] = b[j];
         b[j] = tot;
-        a[tot].y = i;
-        a[tot].z = 0;
-        a[tot].c = -c;
+        a[tot][1] = i;
+        a[tot][2] = 0;
+        a[tot][3] = -c;
     }
     bool spfa()
     {
@@ -75,12 +69,12 @@ struct Graph
         {
             int k = q.front();
             q.pop();
-            for (int i = b[k]; i; i = a[i].x)
+            for (int i = b[k]; i; i = a[i][0])
             {
-                int j = a[i].y;
-                if (a[i].z && d[k] + a[i].c < d[j])
+                int j = a[i][1];
+                if (a[i][2] && d[k] + a[i][3] < d[j])
                 {
-                    d[j] = d[k] + a[i].c;
+                    d[j] = d[k] + a[i][3];
                     p[j] = i;
                     if (!v[j])
                     {
@@ -96,21 +90,21 @@ struct Graph
     void costflow()
     {
         int k, i;
-        flow_type x = oo;
-        for (k = t; k != s; k = a[i ^ 1].y)
+        int x = oo;
+        for (k = t; k != s; k = a[i ^ 1][1])
         {
             i = p[k];
-            x = min(x, a[i].z);
+            x = min(x, a[i][2]);
         }
         if (x <= 0 || x == oo)
             return;
         flow += x;
-        for (k = t; k != s; k = a[i ^ 1].y)
+        for (k = t; k != s; k = a[i ^ 1][1])
         {
             i = p[k];
-            a[i].z -= x;
-            a[i ^ 1].z += x;
-            ans += a[i].c * x;
+            a[i][2] -= x;
+            a[i ^ 1][2] += x;
+            ans += a[i][3] * x;
         }
     }
     int solve()
@@ -131,13 +125,13 @@ struct Graph
             flag = 1;
             return;
         }
-        for (int i = b[k]; i; i = a[i].x)
-            if (i % 2 == 0 && a[i ^ 1].z > 0)
+        for (int i = b[k]; i; i = a[i][0])
+            if (i % 2 == 0 && a[i ^ 1][2] > 0)
             {
-                int j = a[i].y;
+                int j = a[i][1];
                 path_edge.push_back(i ^ 1);
                 path.push_back(j);
-                get_one_path(j, min(x, a[i ^ 1].z));
+                get_one_path(j, min(x, a[i ^ 1][2]));
                 if (flag)
                     return;
                 path.pop_back();
@@ -146,6 +140,7 @@ struct Graph
     }
     void get_paths()
     {
+        paths.clear();
         while (flow > 0)
         {
             flag = 0;
@@ -157,11 +152,27 @@ struct Graph
             paths.push_back(path);
             int x = path[path.size() - 1];
             for (int i = 0; i < int(path_edge.size()); ++i)
-                a[path_edge[i]].z -= x;
+                a[path_edge[i]][2] -= x;
             flow -= x;
         }
     }
-} g, gg;
+} g;
+
+void g_save()
+{
+    tot_bak = g.tot;
+    memcpy(a_bak, g.a, sizeof(a_bak));
+    memcpy(b_bak, g.b, sizeof(b_bak));
+}
+
+void g_load()
+{
+    g.flow = 0;
+    g.ans = 0;
+    g.tot = tot_bak;
+    memcpy(g.a, a_bak, sizeof(a_bak));
+    memcpy(g.b, b_bak, sizeof(b_bak));
+}
 
 vi get_servers(vi servers, int n_servers)
 {
@@ -182,7 +193,7 @@ bool work(int n_servers)
         if (time(NULL) - init_time > 8)
             return 0;
         servers = get_servers(best_servers, n_servers);
-        g = gg;
+        g_load();
         for (int i = 0; i < n_servers; ++i)
             g.add(g.s, servers[i], oo, 0);
         int flow_cost = g.solve();
@@ -229,7 +240,7 @@ void deploy_server(vector<vi> topo, char * filename)
         path.push_back(topo[i][2]);
         best_paths.push_back(path);
     }
-    gg = g;
+    g_save();
     best_cost = server_cost * c;
     best_servers = consumers;
 
@@ -274,7 +285,7 @@ void deploy_server(vector<vi> topo, char * filename)
             servers = old_servers;
             servers[k] = servers[tot];
             servers.pop_back();
-            g = gg;
+            g_load();
             for (int i = 0; i < tot; ++i)
                 g.add(g.s, servers[i], oo, 0);
             int flow_cost = g.solve();
