@@ -390,7 +390,7 @@ void deploy_server(vector<vi> topo, char * filename)
     // printf("DEBUG %d  servers: %d r=%d time: %d\n", best_cost, int(best_servers.size()), r, int(time(NULL) - startTime));
     Particle p(n, best_servers, best_cost);
     pso.add(p);
-    for (int i = r - 10; i < r + 10; ++i)
+    for (int i = min(r + 9, c - 1); i >= r - 10; --i)
     {
         servers = get_servers(consumers, i);
         int flow_cost = get_flow_cost(servers);
