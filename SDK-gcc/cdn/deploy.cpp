@@ -15,11 +15,8 @@ int consumer_id[N];
 vi consumers;
 vi best_servers, servers;
 int flow_need;
-int best_cost, total_cost, best_flow_cost, server_cost;
+int best_cost, best_flow_cost, server_cost;
 vector<vi> best_paths;
-
-int a_bak[M][4], b_bak[N];
-int tot_bak;
 
 struct Graph
 {
@@ -41,6 +38,7 @@ struct Graph
         flow = 0;
         ans = 0;
         memset(b, 0, sizeof(b));
+        paths.clear();
     }
     void add(int i, int j, int k, int c)
     {
@@ -140,7 +138,6 @@ struct Graph
     }
     void get_paths()
     {
-        paths.clear();
         while (flow > 0)
         {
             flag = 0;
@@ -156,23 +153,117 @@ struct Graph
             flow -= x;
         }
     }
-} g;
+} g, gg;
 
-void g_save()
+int get_flow_cost(vi & servers)
 {
-    tot_bak = g.tot;
-    memcpy(a_bak, g.a, sizeof(a_bak));
-    memcpy(b_bak, g.b, sizeof(b_bak));
+    g = gg;
+    int n_servers = int(servers.size());
+    for (int i = 0; i < n_servers; ++i)
+        g.add(g.s, servers[i], oo, 0);
+    return g.solve();
 }
 
-void g_load()
+struct Particle
 {
-    g.flow = 0;
-    g.ans = 0;
-    g.tot = tot_bak;
-    memcpy(g.a, a_bak, sizeof(a_bak));
-    memcpy(g.b, b_bak, sizeof(b_bak));
-}
+    vector<double> v, v_best, vp;
+    int cost, cost_best, n;
+    Particle() {}
+    Particle(int _n, vi &servers, int _cost)
+    {
+        n = _n;
+        cost_best = cost = _cost;
+        v_best.resize(n);
+        v.resize(n);
+        vp.resize(n);
+        for (int i = 0; i < int(servers.size()); ++i)
+            v_best[servers[i]] = v[servers[i]] = 1;
+    }
+    bool operator<(const Particle & p) const
+    {
+        return cost != p.cost ? cost < p.cost : cost_best < p.cost_best;
+    }
+    vi get_servers()
+    {
+        vi servers;
+        for (int i = 0; i < n; ++i)
+            if (v[i] > 0.5)
+                servers.push_back(i);
+        return servers;
+    }
+    vi get_servers_best()
+    {
+        vi servers;
+        for (int i = 0; i < n; ++i)
+            if (v_best[i] > 0.5)
+                servers.push_back(i);
+        return servers;
+    }
+    void run()
+    {
+        int x = rand() % n;
+        int y = rand() % n;
+        while (v[x] <= 0.5)
+            x = rand() % n;
+        while (v[y] >= 0.5)
+            y = rand() % n;
+        swap(v[x], v[y]);
+    }
+    void update()
+    {
+        servers = get_servers();
+        best_flow_cost = best_cost - server_cost * servers.size();
+        int flow_cost = get_flow_cost(servers);
+        cost = flow_cost + server_cost * servers.size();
+        if (flow_cost < best_flow_cost)
+        {
+            v_best = v;
+            cost_best = cost;
+        }
+    }
+};
+
+struct PSO
+{
+    vector<Particle> particles;
+    Particle p_best;
+    double c1, c2, w;
+    void init(double _c1, double _c2, double _w)
+    {
+        c1 = _c1;
+        c2 = _c2;
+        w = _w;
+        // printf("DEBUG %d\n", int(particles.size()));
+        sort(particles.begin(), particles.end());
+        p_best = particles[0];
+    }
+    void add(Particle & p)
+    {
+        particles.push_back(p);
+    }
+    void solve()
+    {
+        for (int i = 0; i < int(particles.size()); ++i)
+        {
+            particles[i].run();
+            particles[i].update();
+            if (particles[i].cost_best < p_best.cost_best)
+            {
+                p_best.v_best = particles[i].v_best;
+                p_best.cost_best = particles[i].cost_best;
+            }
+            update(particles[i]);
+        }
+    }
+    void update(Particle & p)
+    {
+        for (int i = 0; i < p.n; ++i)
+        {
+            p.vp[i] = w * p.vp[i] + c1 * rand() / RAND_MAX * (p.v_best[i] - p.v[i]) + c2 * rand() / RAND_MAX * (p_best.v_best[i] - p.v[i]);
+            p.v[i] = 1 / (1 + exp(100 * (0.5 - p.v[i] - p.vp[i])));
+        }
+    }
+} pso;
 
 vi get_servers(vi servers, int n_servers)
 {
@@ -185,26 +276,58 @@ vi get_servers(vi servers, int n_servers)
 bool work(int n_servers)
 {
     int init_time = time(NULL);
-    int times = 1 << min(n_servers + 1, 13);
-    int success_times = 0;
+    int times = 4096;
     best_flow_cost = best_cost - server_cost * n_servers;
     while (times--)
     {
-        if (time(NULL) - init_time > 8)
+        if (time(NULL) - init_time > 4)
             return 0;
         servers = get_servers(best_servers, n_servers);
-        g_load();
-        for (int i = 0; i < n_servers; ++i)
-            g.add(g.s, servers[i], oo, 0);
-        int flow_cost = g.solve();
+        int flow_cost = get_flow_cost(servers);
         if (flow_cost > best_flow_cost || g.flow != flow_need)
             continue;
         best_flow_cost = flow_cost;
-        ++success_times;
-        if (success_times > 2)
-            return 1;
+        best_cost = best_flow_cost + server_cost * n_servers;
+        best_servers = servers;
+        g.get_paths();
+        best_paths = g.paths;
+        return 1;
     }
     return 0;
+}
+
+void solve_greedy()
+{
+    while (1)
+    {
+        if (time(NULL) - startTime > 85)
+            break;
+        vi old_servers = best_servers;
+        bool flag = 1;
+        int n_servers = int(old_servers.size()) - 1;
+        int init_time = time(NULL);
+        best_flow_cost = best_cost - server_cost * n_servers;
+        for (int k = 0; k <= n_servers; ++k)
+        {
+            if (time(NULL) - init_time > 1)
+                break;
+            servers = old_servers;
+            servers[k] = servers[n_servers];
+            servers.pop_back();
+            int flow_cost = get_flow_cost(servers);
+            if (flow_cost >= best_flow_cost || g.flow != flow_need)
+                continue;
+            flag = 0;
+            best_flow_cost = flow_cost;
+            best_servers = servers;
+            g.get_paths();
+            best_paths = g.paths;
+        }
+        if (flag)
+            break;
+        best_cost = best_flow_cost + server_cost * n_servers;
+    }
+    // printf("DEBUG_greedy %d  servers: %d  time: %d\n", best_cost, int(best_servers.size()), int(time(NULL) - startTime));
 }
 
 void deploy_server(vector<vi> topo, char * filename)
@@ -240,68 +363,69 @@ void deploy_server(vector<vi> topo, char * filename)
         path.push_back(topo[i][2]);
         best_paths.push_back(path);
     }
-    g_save();
+    gg = g;
     best_cost = server_cost * c;
     best_servers = consumers;
 
-    // solve, random
-    if (c > 200)
+    // solve, greedy
+    if (c <= 150)
     {
-        int l = 0, r = c;
-        while (l < r)
-        {
-            if (time(NULL) - startTime > 50)
-                break;
-            int mid = (l + r) >> 1;
-            // printf("DEBUG %d %d %d\n", l, r, mid);
-            if (work(mid))
-            {
-                r = mid;
-                best_cost = best_flow_cost + server_cost * mid;
-                best_servers = servers;
-                // printf("DEBUG %d\n", best_cost);
-                g.get_paths();
-                best_paths = g.paths;
-            }
-            else
-                l = mid + 1;
-        }
+        solve_greedy();
+        Particle p(g.n - 2, best_servers, best_cost);
+        pso.add(p);
     }
 
-    // solve, greedy
+    // solve
+    best_cost = server_cost * c;
+    best_servers = consumers;
+    int l = 0, r = c;
+    while (l < r)
+    {
+        if (time(NULL) - startTime > 40)
+            break;
+        int mid = (l + r) >> 1;
+        if (work(mid))
+            r = mid;
+        else
+            l = mid + 1;
+    }
+    // printf("DEBUG %d  servers: %d  time: %d\n", best_cost, int(best_servers.size()), int(time(NULL) - startTime));
+    Particle p(g.n - 2, best_servers, best_cost);
+    pso.add(p);
+    int n_servers = best_servers.size();
+    best_flow_cost = server_cost * c;
+    for (int i = n_servers - 6; i < n_servers + 6; i += 2)
+    {
+        int init_time = time(NULL);
+        int times = 4096;
+        while (times--)
+        {
+            if (time(NULL) - init_time > 3)
+                break;
+            servers = get_servers(consumers, n_servers);
+            int flow_cost = get_flow_cost(servers);
+            if (g.flow != flow_need)
+                continue;
+            Particle p(g.n - 2, servers, flow_cost + server_cost * i);
+            pso.add(p);
+            break;
+        }
+    }
+    pso.init(1.0, 1.6, 0.9);
     while (1)
     {
-        if (time(NULL) - startTime > 85)
+        if (time(NULL) - startTime > 70)
             break;
-        vi old_servers = best_servers;
-        bool flag = 1;
-        int tot = int(old_servers.size()) - 1;
-        int init_time = time(NULL);
-        best_flow_cost = best_cost - server_cost * tot;
-        for (int k = 0; k <= tot; ++k)
-        {
-            if (time(NULL) - init_time > 2)
-                break;
-            servers = old_servers;
-            servers[k] = servers[tot];
-            servers.pop_back();
-            g_load();
-            for (int i = 0; i < tot; ++i)
-                g.add(g.s, servers[i], oo, 0);
-            int flow_cost = g.solve();
-            if (flow_cost >= best_flow_cost || g.flow != flow_need)
-                continue;
-            flag = 0;
-            best_flow_cost = flow_cost;
-            best_servers = servers;
-            g.get_paths();
-            best_paths = g.paths;
-        }
-        if (flag)
-            break;
-        best_cost = best_flow_cost + server_cost * tot;
-        // printf("DEBUG2 %d  servers: %d  time: %d\n", best_cost, tot, int(time(NULL) - startTime));
+        pso.solve();
     }
+    best_servers = pso.p_best.get_servers_best();
+    int flow_cost = get_flow_cost(servers);
+    best_cost = flow_cost + server_cost * servers.size();
+    // printf("DEBUG pso %d  servers: %d  time: %d\n", best_cost, int(best_servers.size()), int(time(NULL) - startTime));
+    g.get_paths();
+    best_paths = g.paths;
+
+    solve_greedy();
 
     // outputs
     string ans;
