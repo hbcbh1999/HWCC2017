@@ -268,12 +268,13 @@ struct PSO
     }
 } pso;
 
-vi get_servers(vi servers, int n_servers)
+vi get_servers(vi & servers, int n_servers)
 {
+    vi ans(n_servers, 0);
     random_shuffle(servers.begin(), servers.end());
-    for (int i = servers.size() - n_servers; i; --i)
-        servers.pop_back();
-    return servers;
+    for (int i = 0; i < n_servers; ++i)
+        ans[i] = servers[i];
+    return ans;
 }
 
 bool work(int n_servers)
