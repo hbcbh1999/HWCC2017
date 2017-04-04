@@ -15,7 +15,7 @@ int consumer_id[N];
 vi consumers;
 vi best_servers, servers;
 int flow_need;
-int best_cost, best_flow_cost, server_cost;
+int best_cost, best_flow_cost, flow_cost, server_cost;
 vector<vi> best_paths;
 
 struct Graph
@@ -237,16 +237,18 @@ struct Particle
     {
         int x = rand() % n;
         int y = rand() % n;
-        while (v[x] <= 0.5)
+        int cnt = 0;
+        while (v[x] <= 0.5 && ++cnt < n)
             x = rand() % n;
-        while (v[y] >= 0.5)
+        cnt = 0;
+        while (v[y] >= 0.5 && ++cnt < n)
             y = rand() % n;
         swap(v[x], v[y]);
     }
     inline void update()
     {
         servers = get_servers();
-        int flow_cost = get_flow_cost(servers);
+        flow_cost = get_flow_cost(servers);
         cost = flow_cost + server_cost * servers.size();
         if (cost < cost_best)
         {
@@ -314,10 +316,10 @@ vi get_servers(vi & servers, int n_servers)
 bool work(int n_servers)
 {
     int init_time = time(NULL);
-    while (time(NULL) - init_time < 2)
+    while (time(NULL) - init_time < 1)
     {
         servers = get_servers(best_servers, n_servers);
-        int flow_cost = get_flow_cost(servers);
+        flow_cost = get_flow_cost(servers);
         if (g.flow == flow_need)
         {
             flow_cost += server_cost * n_servers;
@@ -334,10 +336,8 @@ bool work(int n_servers)
 
 void solve_greedy()
 {
-    while (1)
+    while (time(NULL) - startTime <= 85)
     {
-        if (time(NULL) - startTime > 85)
-            break;
         vi old_servers = best_servers;
         bool flag = 1;
         int n_servers = int(old_servers.size()) - 1;
@@ -350,7 +350,7 @@ void solve_greedy()
             servers = old_servers;
             servers[k] = servers[n_servers];
             servers.pop_back();
-            int flow_cost = get_flow_cost(servers);
+            flow_cost = get_flow_cost(servers);
             if (flow_cost >= best_flow_cost)
                 continue;
             flag = 0;
@@ -424,10 +424,11 @@ void deploy_server(vector<vi> topo, char * filename)
     // printf("DEBUG %d  servers: %d r=%d time: %d\n", best_cost, int(best_servers.size()), r, int(time(NULL) - startTime));
     Particle p(n, best_servers, best_cost);
     pso.add(p);
-    for (int i = min(r + 9, c - 1); i >= r - 10; --i)
+    int mi = max(0, r - 4);
+    int ma = min(c - 1, r + 4);
+    for (int i = mi; i < ma; ++i)
     {
-        servers = get_servers(consumers, i);
-        int flow_cost = get_flow_cost(servers);
+        work(i);
         Particle p(n, servers, flow_cost + server_cost * i);
         pso.add(p);
     }
