@@ -426,15 +426,15 @@ void deploy_server(vector<vi> topo, char * filename)
         // printf("DEBUG %d  servers: %d r=%d time: %d\n", best_cost, int(best_servers.size()), r, int(time(NULL) - startTime));
         Particle p(n, best_servers, best_cost);
         pso.add(p);
-        int mi = max(0, r - 5);
-        int ma = min(c - 1, r + 5);
+        int mi = max(1, r - 4);
+        int ma = min(c, r + 4);
         for (int i = mi; i < ma; ++i)
         {
             work(i);
             Particle p(n, servers, flow_cost + server_cost * i);
             pso.add(p);
         }
-        pso.init(10, 1.0, 1.6, 0.9);
+        pso.init(8, 1.0, 1.6, 0.9);
         while (time(NULL) - startTime <= 75)
             pso.solve();
         best_servers = pso.p_best.get_servers_best();
