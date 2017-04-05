@@ -409,39 +409,42 @@ void deploy_server(vector<vi> topo, char * filename)
     }
 
     // solve
-    best_flow_cost = oo;
-    int l = 0, r = c;
-    while (l < r)
+    if (c > 1)
     {
-        if (time(NULL) - startTime > 20)
-            break;
-        int mid = (l + r) >> 1;
-        if (work(mid))
-            r = mid;
-        else
-            l = mid + 1;
-    }
-    // printf("DEBUG %d  servers: %d r=%d time: %d\n", best_cost, int(best_servers.size()), r, int(time(NULL) - startTime));
-    Particle p(n, best_servers, best_cost);
-    pso.add(p);
-    int mi = max(0, r - 4);
-    int ma = min(c - 1, r + 4);
-    for (int i = mi; i < ma; ++i)
-    {
-        work(i);
-        Particle p(n, servers, flow_cost + server_cost * i);
+        best_flow_cost = oo;
+        int l = 0, r = c;
+        while (l < r)
+        {
+            if (time(NULL) - startTime > 20)
+                break;
+            int mid = (l + r) >> 1;
+            if (work(mid))
+                r = mid;
+            else
+                l = mid + 1;
+        }
+        // printf("DEBUG %d  servers: %d r=%d time: %d\n", best_cost, int(best_servers.size()), r, int(time(NULL) - startTime));
+        Particle p(n, best_servers, best_cost);
         pso.add(p);
-    }
-    pso.init(8, 1.0, 1.6, 0.9);
-    while (time(NULL) - startTime <= 75)
-        pso.solve();
-    best_servers = pso.p_best.get_servers_best();
-    int flow_cost = get_flow_cost(best_servers);
-    best_cost = flow_cost + server_cost * best_servers.size();
-    // printf("DEBUG pso %d  servers: %d  time: %d\n", best_cost, int(best_servers.size()), int(time(NULL) - startTime));
-    best_paths = g.get_paths();
+        int mi = max(0, r - 5);
+        int ma = min(c - 1, r + 5);
+        for (int i = mi; i < ma; ++i)
+        {
+            work(i);
+            Particle p(n, servers, flow_cost + server_cost * i);
+            pso.add(p);
+        }
+        pso.init(10, 1.0, 1.6, 0.9);
+        while (time(NULL) - startTime <= 75)
+            pso.solve();
+        best_servers = pso.p_best.get_servers_best();
+        int flow_cost = get_flow_cost(best_servers);
+        best_cost = flow_cost + server_cost * best_servers.size();
+        // printf("DEBUG pso %d  servers: %d  time: %d\n", best_cost, int(best_servers.size()), int(time(NULL) - startTime));
+        best_paths = g.get_paths();
 
-    solve_greedy();
+        solve_greedy();
+    }
 
     // outputs
     string ans;
