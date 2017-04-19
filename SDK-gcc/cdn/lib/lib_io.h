@@ -4,6 +4,7 @@
 #include <vector>
 using namespace std;
 typedef vector<int> vi;
+typedef pair<int, int> pii;
 
 extern vector<vi> read_file(const char * const filename);
 

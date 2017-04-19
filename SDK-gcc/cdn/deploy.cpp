@@ -8,14 +8,17 @@ using namespace std;
 
 int startTime;
 
-#define N 1003
-#define M 100003
+#define N 1203
+#define M 300003
 const int oo = 16843009;
+pii flow_cost[10001];
+int node_cost[N];
 int consumer_id[N];
 vi consumers;
+vector<pii> servers_type;
+int flow_need, max_flow;
 vi best_servers, servers;
-int flow_need;
-int best_cost, best_flow_cost, flow_cost, server_cost;
+int best_cost, total_cost;
 vector<vi> best_paths;
 
 struct Graph
@@ -124,7 +127,12 @@ struct Graph
                 memset(v, 0, sizeof(v));
         } while (flag());
         if (flow != flow_need)
-            cost = oo;
+            return oo;
+        for (int i = b[s]; i; i = a[i][0])
+        {
+            int j = a[i][1];
+            cost += node_cost[j] + flow_cost[a[i][4] - a[i][2]].first;
+        }
         return cost;
     }
     void add_server(vi & servers)
@@ -145,11 +153,17 @@ struct Graph
             }
         }
         for (int i = 0; i < int(servers.size()); ++i)
-            add(s, servers[i], oo, 0);
+            add(s, servers[i], max_flow, 0);
     }
     vector<vi> get_paths()
     {
         vector<vi> paths;
+        int node_server_type[N];
+        for (int i = b[s]; i; i = a[i][0])
+        {
+            int j = a[i][1];
+            node_server_type[j] = flow_cost[a[i][4] - a[i][2]].second;
+        }
         while (1)
         {
             vi path;
@@ -188,13 +202,14 @@ struct Graph
                 path.push_back(k);
             }
             path[int(path.size()) - 1] = x;
+            path.push_back(node_server_type[path[0]]);
             paths.push_back(path);
         }
         return paths;
     }
 } g;
 
-inline int get_flow_cost(vi & servers)
+inline int get_cost(vi & servers)
 {
     g.add_server(servers);
     return g.costflow();
@@ -248,12 +263,11 @@ struct Particle
     inline void update()
     {
         servers = get_servers();
-        flow_cost = get_flow_cost(servers);
-        cost = flow_cost + server_cost * servers.size();
-        if (cost < cost_best)
+        total_cost = get_cost(servers);
+        if (total_cost < cost_best)
         {
             v_best = v;
-            cost_best = cost;
+            cost_best = total_cost;
         }
     }
 };
@@ -319,50 +333,18 @@ bool work(int n_servers)
     while (time(NULL) - init_time < 1)
     {
         servers = get_servers(best_servers, n_servers);
-        flow_cost = get_flow_cost(servers);
+        total_cost = get_cost(servers);
         if (g.flow == flow_need)
         {
-            flow_cost += server_cost * n_servers;
-            if (flow_cost < best_cost)
+            if (total_cost < best_cost)
             {
-                best_cost = flow_cost;
+                best_cost = total_cost;
                 best_servers = servers;
             }
             return 1;
         }
     }
     return 0;
-}
-
-void solve_greedy()
-{
-    while (time(NULL) - startTime <= 85)
-    {
-        vi old_servers = best_servers;
-        bool flag = 1;
-        int n_servers = int(old_servers.size()) - 1;
-        int init_time = time(NULL);
-        best_flow_cost = best_cost - server_cost * n_servers;
-        for (int k = 0; k <= n_servers; ++k)
-        {
-            if (time(NULL) - init_time > 1)
-                break;
-            servers = old_servers;
-            servers[k] = servers[n_servers];
-            servers.pop_back();
-            flow_cost = get_flow_cost(servers);
-            if (flow_cost >= best_flow_cost)
-                continue;
-            flag = 0;
-            best_flow_cost = flow_cost;
-            best_servers = servers;
-            best_paths = g.get_paths();
-        }
-        if (flag)
-            break;
-        best_cost = best_flow_cost + server_cost * n_servers;
-    }
-    // printf("DEBUG_greedy %d  servers: %d  time: %d\n", best_cost, int(best_servers.size()), int(time(NULL) - startTime));
 }
 
 void deploy_server(vector<vi> topo, char * filename)
@@ -373,78 +355,86 @@ void deploy_server(vector<vi> topo, char * filename)
     int n = topo[0][0];
     int m = topo[0][1];
     int c = topo[0][2];
-    server_cost = topo[1][0];
 
     // inputs
     g.init(n, n + 1);
-
-    for (int i = 2; i < m + 2; ++i)
+    int line = 1;
+    max_flow = 0;
+    for (; topo[line].size() == 3; ++line)
+    {
+        int flow = topo[line][1];
+        servers_type.push_back(pii(flow, topo[line][2]));
+        max_flow = max(max_flow, flow);
+    }
+    for (int i = 0; i <= max_flow; ++i)
+    {
+        flow_cost[i] = pii(oo, 0);
+        for (int j = 0; j < int(servers_type.size()); ++j)
+            if (servers_type[j].first >= i && servers_type[j].second < flow_cost[i].first)
+                flow_cost[i] = pii(servers_type[j].second, j);
+    }
+    for (; topo[line].size() == 2; ++line)
+    {
+        int idx = topo[line][0];
+        node_cost[idx] = topo[line][1];
+    }
+    for (int i = line; i < line + m; ++i)
     {
         g.add(topo[i][0], topo[i][1], topo[i][2], topo[i][3]);
         g.add(topo[i][1], topo[i][0], topo[i][2], topo[i][3]);
     }
-
+    line += m;
     flow_need = 0;
-    for (int i = m + 2; i < m + 2 + c; ++i)
+    best_cost = 0;
+    for (int i = line; i < line + c; ++i)
     {
         int idx = topo[i][1];
+        int flow = topo[i][2];
         consumer_id[idx] = topo[i][0];
         consumers.push_back(idx);
-        g.add(idx, g.t, topo[i][2], 0);
-        flow_need += topo[i][2];
+        g.add(idx, g.t, flow, 0);
+        flow_need += flow;
         // init best_paths
         vi path;
         path.push_back(idx);
-        path.push_back(topo[i][2]);
+        path.push_back(flow);
+        path.push_back(flow_cost[flow].second);
         best_paths.push_back(path);
+        best_cost += node_cost[idx] + flow_cost[flow].first;
     }
     g.tot_tmp = g.tot;
-    best_cost = server_cost * c;
     best_servers = consumers;
 
-    // solve, greedy
-    if (c <= 150)
-    {
-        solve_greedy();
-    }
-
     // solve
-    if (c > 1)
+    int l = 0, r = c;
+    while (l < r)
     {
-        best_flow_cost = oo;
-        int l = 0, r = c;
-        while (l < r)
-        {
-            if (time(NULL) - startTime > 20)
-                break;
-            int mid = (l + r) >> 1;
-            if (work(mid))
-                r = mid;
-            else
-                l = mid + 1;
-        }
-        // printf("DEBUG %d  servers: %d r=%d time: %d\n", best_cost, int(best_servers.size()), r, int(time(NULL) - startTime));
-        Particle p(n, best_servers, best_cost);
-        pso.add(p);
-        int mi = max(1, r - 4);
-        int ma = min(c, r + 4);
-        for (int i = mi; i < ma; ++i)
-        {
-            work(i);
-            Particle p(n, servers, flow_cost + server_cost * i);
-            pso.add(p);
-        }
-        pso.init(8, 1.0, 1.6, 0.9);
-        while (time(NULL) - startTime <= 75)
-            pso.solve();
-        best_servers = pso.p_best.get_servers_best();
-        int flow_cost = get_flow_cost(best_servers);
-        best_cost = flow_cost + server_cost * best_servers.size();
-        // printf("DEBUG pso %d  servers: %d  time: %d\n", best_cost, int(best_servers.size()), int(time(NULL) - startTime));
-        best_paths = g.get_paths();
-
-        solve_greedy();
+        if (time(NULL) - startTime > 20)
+            break;
+        int mid = (l + r) >> 1;
+        if (work(mid))
+            r = mid;
+        else
+            l = mid + 1;
     }
+    // printf("DEBUG %d  servers: %d r=%d time: %d\n", best_cost, int(best_servers.size()), r, int(time(NULL) - startTime));
+    Particle p(n, best_servers, best_cost);
+    pso.add(p);
+    int mi = max(1, r - 4);
+    int ma = min(c, r + 4);
+    for (int i = mi; i < ma; ++i)
+    {
+        work(i);
+        Particle p(n, servers, total_cost);
+        pso.add(p);
+    }
+    pso.init(8, 1.0, 1.6, 0.9);
+    while (time(NULL) - startTime <= 85)
+        pso.solve();
+    best_servers = pso.p_best.get_servers_best();
+    best_cost = get_cost(best_servers);
+    // printf("DEBUG pso %d  servers: %d  time: %d\n", best_cost, int(best_servers.size()), int(time(NULL) - startTime));
+    best_paths = g.get_paths();
 
     // outputs
     string ans;
@@ -454,14 +444,14 @@ void deploy_server(vector<vi> topo, char * filename)
     ans = a;
     for (int i = 0; i < n_route; ++i)
     {
-        int k = best_paths[i].size() - 1;
+        int k = best_paths[i].size() - 2;
         for (int j = 0; j < k; ++j)
         {
             sprintf(a, "%d ", best_paths[i][j]);
             ans += a;
         }
         int last_node = best_paths[i][k - 1];
-        sprintf(a, "%d %d\n", consumer_id[last_node], best_paths[i][k]);
+        sprintf(a, "%d %d %d\n", consumer_id[last_node], best_paths[i][k], best_paths[i][k + 1]);
         ans += a;
     }
     char * topo_file = (char *)ans.c_str();

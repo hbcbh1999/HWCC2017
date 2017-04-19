@@ -50,13 +50,13 @@ bool read(FILE *fp, int &x)
 {
     // read positive integer
     char c = getc(fp);
-    while (!feof(fp) && c != '\n' && (c < '0' || c > '9'))
+    while (!feof(fp) && c != '\n' && c != '\r' && (c < '0' || c > '9'))
         c = getc(fp);
-    if (feof(fp) || c == '\n')
+    if (feof(fp) || c == '\n' || c == '\r')
         return 0;
     for (x = 0; c >= '0' && c <= '9'; c = getc(fp))
         x = x * 10 + c - '0';
-    if (c == '\n')
+    if (c == '\n' || c == '\r')
         return 0;
     return 1;
 }
