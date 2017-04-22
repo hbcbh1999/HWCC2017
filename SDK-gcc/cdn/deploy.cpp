@@ -20,6 +20,8 @@ int flow_need, max_flow;
 vi best_servers, servers;
 int best_cost, total_cost;
 vector<vi> best_paths;
+int d_cost[N][N], v[N];
+int n_node, n_edge, n_consumers;
 
 struct Graph
 {
@@ -327,12 +329,73 @@ vi get_servers(vi & servers, int n_servers)
     return ans;
 }
 
+void floyd()
+{
+    for (int i = 0; i < n_node; ++i)
+        d_cost[i][i] = 0;
+    for (int k = 0; k < n_node; ++k)
+        for (int i = 0; i < n_node; ++i)
+            if (i != k)
+                for (int j = 0; j < n_node; ++j)
+                    if (j != k && j != i)
+                        d_cost[i][j] = min(d_cost[i][j], d_cost[i][k] + d_cost[k][j]);
+}
+
+void kmeans(vi & servers, int k)
+{
+    vector<vi> kmeans_nodes(k);
+    memset(v, -1, sizeof(v));
+    while (1)
+    {
+        bool flag = 1;
+        for (int i = 0; i < k; ++i)
+            kmeans_nodes[i].clear();
+        for (int i = 0; i < n_consumers; ++i)
+        {
+            int mind = oo;
+            int mini = 0;
+            for (int j = 0; j < k; ++j)
+                if (d_cost[servers[j]][consumers[i]] < mind)
+                {
+                    mind = d_cost[servers[j]][consumers[i]];
+                    mini = j;
+                }
+            if (v[i] != mini)
+            {
+                flag = 0;
+                v[i] = mini;
+            }
+            kmeans_nodes[v[i]].push_back(consumers[i]);
+        }
+        if (flag)
+            break;
+        for (int j = 0; j < k; ++j)
+        {
+            int mind = oo;
+            int mini = 0;
+            for (int l = 0; l < n_node; ++l)
+            {
+                int d = 0;
+                for (int i = 0; i < int(kmeans_nodes[j].size()); ++i)
+                    d += d_cost[l][kmeans_nodes[j][i]];
+                if (d < mind)
+                {
+                    mind = d;
+                    mini = l;
+                }
+            }
+            servers[j] = mini;
+        }
+    }
+}
+
 bool work(int n_servers)
 {
     int init_time = time(NULL);
     while (time(NULL) - init_time < 1)
     {
         servers = get_servers(best_servers, n_servers);
+        kmeans(servers, n_servers);
         total_cost = get_cost(servers);
         if (g.flow == flow_need)
         {
@@ -352,12 +415,13 @@ void deploy_server(vector<vi> topo, char * filename)
     startTime = time(NULL);
     srand(startTime);
 
-    int n = topo[0][0];
-    int m = topo[0][1];
-    int c = topo[0][2];
+    n_node = topo[0][0];
+    n_edge = topo[0][1];
+    n_consumers = topo[0][2];
 
     // inputs
-    g.init(n, n + 1);
+    memset(d_cost, 1, sizeof(d_cost));
+    g.init(n_node, n_node + 1);
     int line = 1;
     max_flow = 0;
     for (; topo[line].size() == 3; ++line)
@@ -378,15 +442,16 @@ void deploy_server(vector<vi> topo, char * filename)
         int idx = topo[line][0];
         node_cost[idx] = topo[line][1];
     }
-    for (int i = line; i < line + m; ++i)
+    for (int i = line; i < line + n_edge; ++i)
     {
         g.add(topo[i][0], topo[i][1], topo[i][2], topo[i][3]);
         g.add(topo[i][1], topo[i][0], topo[i][2], topo[i][3]);
+        d_cost[topo[i][0]][topo[i][1]] = d_cost[topo[i][1]][topo[i][0]] = topo[i][3];
     }
-    line += m;
+    line += n_edge;
     flow_need = 0;
     best_cost = 0;
-    for (int i = line; i < line + c; ++i)
+    for (int i = line; i < line + n_consumers; ++i)
     {
         int idx = topo[i][1];
         int flow = topo[i][2];
@@ -406,7 +471,8 @@ void deploy_server(vector<vi> topo, char * filename)
     best_servers = consumers;
 
     // solve
-    int l = 0, r = c;
+    floyd();
+    int l = 0, r = n_consumers;
     while (l < r)
     {
         if (time(NULL) - startTime > 20)
@@ -418,19 +484,25 @@ void deploy_server(vector<vi> topo, char * filename)
             l = mid + 1;
     }
     // printf("DEBUG %d  servers: %d r=%d time: %d\n", best_cost, int(best_servers.size()), r, int(time(NULL) - startTime));
-    Particle p(n, best_servers, best_cost);
+    Particle p(n_node, best_servers, best_cost);
     pso.add(p);
     int mi = max(1, r - 4);
-    int ma = min(c, r + 4);
+    int ma = min(n_consumers, r + 4);
     for (int i = mi; i < ma; ++i)
     {
         work(i);
-        Particle p(n, servers, total_cost);
+        Particle p(n_node, servers, total_cost);
         pso.add(p);
     }
     pso.init(8, 1.0, 1.6, 0.9);
-    while (time(NULL) - startTime <= 85)
+    while (time(NULL) - startTime <= 55)
         pso.solve();
+    // printf("DEBUG pso %d  servers: %d  time: %d\n", best_cost, int(best_servers.size()), int(time(NULL) - startTime));
+    pso.init(4, 1.0, 1.6, 0.9);
+    while (time(NULL) - startTime <= 85)
+    {
+        pso.solve();
+    }
     best_servers = pso.p_best.get_servers_best();
     best_cost = get_cost(best_servers);
     // printf("DEBUG pso %d  servers: %d  time: %d\n", best_cost, int(best_servers.size()), int(time(NULL) - startTime));
